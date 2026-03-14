@@ -1,24 +1,12 @@
 import subprocess
 
-def get_node_metrics():
-    try:
-        result = subprocess.run(
-            ["kubectl", "top", "nodes"],
-            capture_output=True,
-            text=True
-        )
 
-        if result.returncode != 0:
-            print("Error retrieving metrics")
-            return None
+def get_pod_status():
 
-        return result.stdout
+    result = subprocess.run(
+        ["kubectl", "get", "pods", "-A"],
+        capture_output=True,
+        text=True
+    )
 
-    except Exception as e:
-        print("Telemetry error:", e)
-        return None
-
-
-if __name__ == "__main__":
-    metrics = get_node_metrics()
-    print(metrics)
+    return result.stdout

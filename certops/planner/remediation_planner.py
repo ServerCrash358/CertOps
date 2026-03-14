@@ -1,31 +1,17 @@
 import ollama
 
-def suggest_remediation(alert):
+
+def suggest_pod_remediation(failure):
 
     prompt = f"""
-Kubernetes node {alert['node']} has CPU usage of {alert['cpu']}%.
+Pod {failure['pod']} in namespace {failure['namespace']} is in state {failure['status']}.
 
 Suggest possible remediation steps.
 """
 
     response = ollama.chat(
         model="phi3",
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
+        messages=[{"role": "user", "content": prompt}]
     )
 
     return response["message"]["content"]
-
-
-if __name__ == "__main__":
-
-    alert = {
-        "node": "minikube",
-        "cpu": 92
-    }
-
-    result = suggest_remediation(alert)
-
-    print("\nSuggested remediation:\n")
-    print(result)
