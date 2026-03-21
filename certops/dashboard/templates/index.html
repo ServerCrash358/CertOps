@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CertOps Dashboard v{{ version }}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #0f172a; color: #e2e8f0; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+        header { border-bottom: 1px solid #334155; padding-bottom: 1rem; margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center; }
+        h1 { color: #38bdf8; font-size: 2rem; }
+        .version { color: #64748b; font-size: 0.875rem; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; }
+        .card { background: #1e293b; border-radius: 8px; padding: 1.5rem; border: 1px solid #334155; }
+        .card.wide { grid-column: span 2; }
+        .card h2 { color: #38bdf8; margin-bottom: 1rem; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th, td { text-align: left; padding: 0.6rem; border-bottom: 1px solid #334155; }
+        th { color: #94a3b8; font-weight: 500; font-size: 0.8rem; }
+        .badge { display: inline-block; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; }
+        .badge-error { background: #ef4444; color: white; }
+        .badge-success { background: #22c55e; color: white; }
+        .badge-certified { background: #8b5cf6; color: white; }
+        .badge-ml { background: #f59e0b; color: white; }
+        .badge-rl { background: #ec4899; color: white; }
+        .btn { background: #38bdf8; color: #0f172a; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+        .btn:hover { background: #7dd3fc; }
+        .btn-small { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
+        .empty { color: #64748b; font-style: italic; padding: 2rem; text-align: center; }
+        .metric { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid #334155; }
+        .metric:last-child { border-bottom: none; }
+        .metric-label { color: #94a3b8; font-size: 0.85rem; }
+        .metric-value { font-weight: 600; }
+        .progress-bar { background: #334155; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 0.25rem; }
+        .progress-fill { background: linear-gradient(90deg, #38bdf8, #8b5cf6); height: 100%; transition: width 0.3s; }
+        .prediction-box { background: #0f172a; border-radius: 6px; padding: 1rem; margin-top: 0.5rem; }
+        .prediction-row { display: flex; justify-content: space-between; margin: 0.5rem 0; }
+        .icon { width: 20px; height: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div>
+                <h1>CertOps</h1>
+                <span class="version">Safety-Verified Autonomous Infrastructure Operations v{{ version }}</span>
+            </div>
+            <div>
+                {% if ml_stats.trained %}
+                <span class="badge badge-success">ML Trained</span>
+                {% else %}
+                <span class="badge badge-ml">ML: {{ ml_stats.training_samples }} samples</span>
+                {% endif %}
+                <button class="btn btn-small" onclick="trainML()">Train Model</button>
+            </div>
+        </header>
+
+        <div class="grid">
+            <!-- Active Incidents -->
+            <div class="card wide">
+                <h2>Active Incidents</h2>
+                {% if incidents %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Pod</th>
+                            <th>Namespace</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for incident in incidents %}
+                        <tr>
+                            <td>{{ incident.id[:8] }}</td>
+                            <td>{{ incident.pod }}</td>
+                            <td>{{ incident.namespace }}</td>
+                            <td><span class="badge badge-error">{{ incident.status }}</span></td>
+                            <td><button class="btn btn-small" onclick="remediate('{{ incident.id }}')">Remediate</button></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="empty">No active incidents</p>
+                {% endif %}
+            </div>
+
+            <!-- ML Stats -->
+            <div class="card">
+                <h2>ML Model Stats</h2>
+                <div class="metric">
+                    <span class="metric-label">Status</span>
+                    <span class="metric-value">{{ "Trained" if ml_stats.trained else "Training" }}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Samples</span>
+                    <span class="metric-value">{{ ml_stats.training_samples }}</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Success Rate</span>
+                    <span class="metric-value">{{ "%.1f"|format(ml_stats.success_rate * 100) }}%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: {{ ml_stats.success_rate * 100 }}%"></div>
+                </div>
+            </div>
+
+            <!-- Certificates -->
+            <div class="card wide">
+                <h2>Remediation Certificates</h2>
+                {% if certificates %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Incident</th>
+                            <th>Action</th>
+                            <th>Status</th>
+                            <th>ML</th>
+                            <th>RL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cert in certificates %}
+                        <tr>
+                            <td>{{ cert.certificate_id[:8] }}</td>
+                            <td>{{ cert.incident_id[:15] }}...</td>
+                            <td>{{ cert.action }}</td>
+                            <td><span class="badge badge-certified">{{ cert.status }}</span></td>
+                            <td>{% if cert.safety_proofs.ml_prediction %}<span class="badge badge-ml">{{ "%.0f"|format(cert.safety_proofs.ml_prediction.confidence * 100) }}%</span>{% endif %}</td>
+                            <td>{% if cert.safety_proofs.rl_policy %}<span class="badge badge-rl">{{ cert.safety_proofs.rl_policy.action[:5] }}</span>{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="empty">No certificates issued</p>
+                {% endif %}
+            </div>
+
+            <!-- Live Metrics (placeholder) -->
+            <div class="card">
+                <h2>Live Metrics</h2>
+                <div class="metric">
+                    <span class="metric-label">CPU</span>
+                    <span class="metric-value" id="live-cpu">--</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Memory</span>
+                    <span class="metric-value" id="live-mem">--</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Latency</span>
+                    <span class="metric-value" id="live-lat">--</span>
+                </div>
+                <div class="metric">
+                    <span class="metric-label">Traffic</span>
+                    <span class="metric-value" id="live-traffic">--</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function remediate(incidentId) {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = 'Processing...';
+
+            try {
+                const res = await fetch(`/api/remediate/${incidentId}`, { method: 'POST' });
+                const data = await res.json();
+                if (data.certificate) {
+                    // Update live metrics display
+                    if (data.live_metrics) {
+                        document.getElementById('live-cpu').textContent = data.live_metrics.cpu.toFixed(1) + '%';
+                        document.getElementById('live-mem').textContent = data.live_metrics.memory.toFixed(1) + '%';
+                        document.getElementById('live-lat').textContent = data.live_metrics.latency.toFixed(0) + 'ms';
+                        document.getElementById('live-traffic').textContent = data.live_metrics.traffic.toFixed(1);
+                    }
+                    alert(`Remediation certified!\nCertificate: ${data.certificate}\nAction: ${data.action}\nML Confidence: ${(data.ml_prediction.confidence * 100).toFixed(0)}%\nRL Action: ${data.rl_policy.action}`);
+                    location.reload();
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Error: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Remediate';
+            }
+        }
+
+        async function trainML() {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = 'Training...';
+            try {
+                const res = await fetch('/api/ml/train', { method: 'POST' });
+                const data = await res.json();
+                alert(`ML Model: ${data.trained ? 'Trained' : 'Not enough data'}\nSamples: ${data.stats.training_samples}`);
+                location.reload();
+            } catch (e) {
+                alert('Error: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Train Model';
+            }
+        }
+    </script>
+</body>
+</html>
