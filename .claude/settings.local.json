@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(PYTHONPATH=. python -c \"from certops.policies.safety_verifier import verify_scaling; result = verify_scaling\\(5, max_pods=10\\); print\\('Safety verification result:', result\\)\")",
+      "Bash(PYTHONPATH=. python -c \"from certops.analysis.anomaly_detector import detect_pod_failures; pods = [{'name': 'pod-1', 'namespace': 'default', 'status': 'Running'}, {'name': 'pod-2', 'namespace': 'default', 'status': 'CrashLoopBackOff'}]; failures = detect_pod_failures\\(pods\\); print\\('Detected failures:', failures\\)\")",
+      "Bash(python:*)"
+    ]
+  }
+}
